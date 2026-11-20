@@ -8,6 +8,7 @@
 package local
 
 import (
+	"bytes"
 	"cmp"
 	"crypto/rand"
 	"encoding/hex"
@@ -22,6 +23,9 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"unicode/utf8"
+
+	"golang.org/x/text/encoding/simplifiedchinese"
 
 	"mygo-music/internal/i18n"
 	"mygo-music/internal/music"
@@ -542,7 +546,7 @@ func (s *Source) Lyrics(id string) (*music.Lyrics, error) {
 	base := strings.TrimSuffix(it.Path, filepath.Ext(it.Path))
 	for _, ext := range []string{".lrc", ".LRC"} {
 		if b, err := os.ReadFile(base + ext); err == nil {
-			return &music.Lyrics{LRC: strings.TrimPrefix(string(b), "\xef\xbb\xbf")}, nil
+			return &music.Lyrics{LRC: decodeLRC(b)}, nil
 		}
 	}
 	f, err := os.Open(it.Path)
@@ -558,6 +562,20 @@ func (s *Source) Lyrics(id string) (*music.Lyrics, error) {
 		return &music.Lyrics{LRC: t.lyrics}, nil
 	}
 	return &music.Lyrics{}, nil
+}
+
+// decodeLRC reads an .lrc file's words: a BOM off the front, and text the
+// wrong encoding undone. LRC has no way to say its encoding, and Chinese
+// lyrics come in GBK; UTF-8 that doesn't hold up with every high byte paired
+// turns Chinese.
+func decodeLRC(b []byte) string {
+	b = bytes.TrimPrefix(b, []byte("\xef\xbb\xbf"))
+	if !utf8.Valid(b) && gbkPairs(b) {
+		if out, err := simplifiedchinese.GBK.NewDecoder().Bytes(b); err == nil && utf8.Valid(out) && !bytes.ContainsRune(out, utf8.RuneError) {
+			b = out
+		}
+	}
+	return string(b)
 }
 
 // Stream answers the file itself. The quality asked for doesn't come into it.

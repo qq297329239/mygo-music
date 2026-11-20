@@ -124,6 +124,18 @@ func choice(c *ui.Context, key, label string, labels []string, at int) (int, boo
 	return at, false
 }
 
+// desktopFontName is a font family as the lyrics' font list shows it: as the
+// font names itself in the app's language, where it has one, as Windows'
+// own font folder shows it.
+func desktopFontName(family string) string {
+	if i18n.Language() == i18n.Chinese {
+		if zh, ok := localizedFontNames()[family]; ok {
+			return zh
+		}
+	}
+	return T(family)
+}
+
 // settingsRow is a setting of the settings window: what it is, what it means,
 // and its control. It shows if a search finds it.
 type settingsRow func(label, desc string, control func())
@@ -411,7 +423,7 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 		})
 		row(T("Unlock Position and Size"), T("Drag the bar to move it and pull its edges to resize it, until locked again"), func() {
 			if ui.Switch(c.Key("unlocked"), &s.DesktopLyricsUnlocked).Label(T("Unlock Position and Size")).
-				Disabled(!s.DesktopLyrics || s.DesktopLyricsTaskbar).Changed() {
+				Disabled(!s.DesktopLyrics).Changed() {
 				a.changed()
 			}
 		})
@@ -427,29 +439,53 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 		})
 		row(T("Font"), T("What the words are drawn in"), func() {
 			families := ui.FontFamilies()
-			names := make([]string, len(families)+1)
-			names[0] = T("Default")
-			for i, f := range families {
-				names[i+1] = f.Name
-			}
-			at := slices.Index(names, s.DesktopLyricsFont)
-			if at < 0 {
-				at = 0
-			}
-			if i, ok := choice(c, "font", T("Font"), names, at); ok {
-				s.DesktopLyricsFont = ""
-				if i > 0 {
-					s.DesktopLyricsFont = families[i-1].Name
+			// Fonts with a name in the app's language first, keeping their
+			// order, then the rest: Chinese fonts ahead of the Latin ones.
+			slices.SortStableFunc(families, func(a, b ui.FontFamily) int {
+				za, zb := a.Name != desktopFontName(a.Name), b.Name != desktopFontName(b.Name)
+				switch {
+				case za && !zb:
+					return -1
+				case !za && zb:
+					return 1
 				}
-				a.changed()
+				return 0
+			})
+			// The list shows each family as the font itself names it, but
+			// keeps the name text draws by, which stays English.
+			keys := make([]string, len(families)+1)
+			shown := make([]string, len(keys))
+			shown[0] = T("Default")
+			for i, f := range families {
+				keys[i+1], shown[i+1] = f.Name, desktopFontName(f.Name)
+			}
+			chosen := shown[max(slices.Index(keys, s.DesktopLyricsFont), 0)]
+			if ui.Select(c.Key("font"), &chosen, shown).Label(T("Font")).Width(170).Changed() {
+				if i := slices.Index(shown, chosen); i >= 0 {
+					s.DesktopLyricsFont = keys[i]
+					a.changed()
+				}
 			}
 		})
 		row(T("Font Size"), T("How large the line sung is drawn"), func() {
-			v := float64(max(s.DesktopLyricsSize, 12))
-			slider := ui.SliderBase(c.Key("size"), &v, 12, 48).Width(140).Label(T("Font Size"))
-			ui.Text(c, strconv.Itoa(int(v+0.5))).Width(22).TextColor(p.text).SingleLine()
-			if slider.Changed() {
-				s.DesktopLyricsSize = int(v + 0.5)
+			sizes := []string{"12", "14", "16", "18", "20", "22", "24", "28", "32", "36", "42", "48"}
+			cur := s.DesktopLyricsSize
+			if cur == 0 {
+				cur = 22
+			}
+			at, near := 0, 1<<30
+			for i, n := range sizes {
+				v, _ := strconv.Atoi(n)
+				d := v - cur
+				if d < 0 {
+					d = -d
+				}
+				if d < near {
+					at, near = i, d
+				}
+			}
+			if i, ok := choice(c, "size", T("Font Size"), sizes, at); ok {
+				s.DesktopLyricsSize, _ = strconv.Atoi(sizes[i])
 				a.changed()
 			}
 		})
@@ -514,7 +550,17 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 			if v == 0 {
 				v = 0.6
 			}
-			if ui.SliderBase(c.Key("opacity"), &v, 0.15, 1).Width(140).Label(T("Opacity")).Disabled(!s.DesktopLyricsBg).Changed() {
+			slider := ui.SliderBase(c.Key("opacity"), &v, 0.15, 1).Width(140).Height(16).Label(T("Opacity")).Disabled(!s.DesktopLyrics)
+			// A SliderBase draws nothing itself; paint its track as the
+			// volume slider does.
+			slider.Draw(func(dr *ui.Painter, r ui.Rect) {
+				const thick = float32(4)
+				y := r.Y + (r.H-thick)/2
+				dr.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: thick}, p.hairline, thick/2)
+				dr.Fill(ui.Rect{X: r.X, Y: y, W: max(thick, r.W*float32(v)), H: thick}, p.accent, thick/2)
+			})
+			ui.Text(c, strconv.FormatFloat(v*100, 'f', 0, 64)+"%").Width(36).TextColor(p.text).SingleLine()
+			if slider.Changed() {
 				s.DesktopLyricsOpacity = v
 				a.changed()
 			}

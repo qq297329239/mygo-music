@@ -875,13 +875,17 @@ func TestLyrics(t *testing.T) {
 	const timed = "[00:01.00]line one"
 	write(t, filepath.Join(dir, "side.mp3"), mp3With(t, [2]string{"TIT2", "Side"}, [2]string{"USLT", "[00:09.00]tag loses"}))
 	write(t, filepath.Join(dir, "side.lrc"), []byte("\xef\xbb\xbf"+timed))
+	// Chinese LRC files come in GBK, with nothing saying so.
+	const gbkTimed = "[00:01.00]\xb2\xbb\xc8\xe7"
+	write(t, filepath.Join(dir, "gbk.mp3"), mp3With(t, [2]string{"TIT2", "Gbk"}))
+	write(t, filepath.Join(dir, "gbk.lrc"), []byte(gbkTimed))
 	write(t, filepath.Join(dir, "tag.mp3"), mp3With(t, [2]string{"TIT2", "Tag"}, [2]string{"USLT", timed}))
 	write(t, filepath.Join(dir, "plain.mp3"), mp3With(t, [2]string{"TIT2", "Plain"}, [2]string{"USLT", "just words"}))
 	write(t, filepath.Join(dir, "vorbis.flac"), flacWith(t, nil, "TITLE=Vorbis", "LYRICS="+timed))
 	write(t, filepath.Join(dir, "none.mp3"), mp3With(t, [2]string{"TIT2", "None"}))
 	s := scanned(t, dir)
 
-	for name, want := range map[string]string{"Side": timed, "Tag": timed, "Vorbis": timed, "Plain": "", "None": ""} {
+	for name, want := range map[string]string{"Side": timed, "Gbk": "[00:01.00]不如", "Tag": timed, "Vorbis": timed, "Plain": "", "None": ""} {
 		l, err := s.Lyrics(songNamed(t, s, name).ID)
 		if err != nil || l == nil || l.LRC != want {
 			t.Errorf("%s: %+v, %v", name, l, err)

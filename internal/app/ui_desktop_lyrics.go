@@ -55,6 +55,7 @@ func newDesktopLyrics(a *app) *desktopLyrics {
 	})
 	// Closed, it stays until the app quits: the setting and the lyrics decide
 	// when it shows, in sync.
+	hideWindowBorder(d.win.NativeHandle())
 	d.win.OnClose(func(e *mygo.CloseEvent) {
 		if !a.quitting {
 			e.PreventDefault()
@@ -72,23 +73,26 @@ func newDesktopLyrics(a *app) *desktopLyrics {
 	return d
 }
 
-// place says where the bar sits: on the taskbar itself when asked, where the
-// listener left it, else floating at the foot of the work area.
+// place says where the bar sits: on the taskbar itself when asked and not
+// left somewhere else by hand, where the listener left it, else floating at
+// the foot of the work area.
 func (d *desktopLyrics) place() (x, y, w, h int) {
 	s := &d.a.settings
 	disp := mygo.Screen.PrimaryDisplay()
-	if s.DesktopLyricsTaskbar {
-		if tx, ty, tw, th, ok := taskbarRect(disp.Bounds, disp.WorkArea); ok {
+	wa := disp.WorkArea
+	if s.DesktopLyricsTaskbar && (!s.DesktopLyricsUnlocked || s.DesktopLyricsW == 0 || s.DesktopLyricsH == 0) {
+		if tx, ty, tw, th, ok := taskbarRect(disp.Bounds, wa); ok {
 			return tx, ty, tw, th
 		}
 		// A taskbar beside the work, above it, or hidden until the pointer
 		// asks leaves no strip to sit on; float as ever instead.
 	}
-	wa := disp.WorkArea
-	if !s.DesktopLyricsTaskbar && s.DesktopLyricsW > 0 && s.DesktopLyricsH > 0 {
+	if s.DesktopLyricsW > 0 && s.DesktopLyricsH > 0 {
 		w, h = s.DesktopLyricsW, s.DesktopLyricsH
-		x = min(max(s.DesktopLyricsX, wa.X), wa.X+wa.Width-w)
-		y = min(max(s.DesktopLyricsY, wa.Y), wa.Y+wa.Height-h)
+		// To the edge of the screen, not the work area: the bar may be left
+		// on the taskbar, which the work area leaves out.
+		x = min(max(s.DesktopLyricsX, disp.Bounds.X), disp.Bounds.X+disp.Bounds.Width-w)
+		y = min(max(s.DesktopLyricsY, disp.Bounds.Y), disp.Bounds.Y+disp.Bounds.Height-h)
 		return
 	}
 	w = min(desktopLyricsW, wa.Width-32)
@@ -136,18 +140,20 @@ func (d *desktopLyrics) applySettings() {
 	d.applyMode()
 }
 
-// applyMode takes the pointer while the bar floats unlocked, to move it by
-// its face and resize it by its edges; locked, the pointer passes through as
-// ever.
+// applyMode takes the pointer while the bar floats unlocked, on the taskbar
+// or off it, to move it by its face and resize it by its edges; locked, the
+// pointer passes through as ever.
 func (d *desktopLyrics) applyMode() {
 	if d.win == nil {
 		return
 	}
-	free := d.a.settings.DesktopLyricsUnlocked && !d.a.settings.DesktopLyricsTaskbar
+	free := d.a.settings.DesktopLyricsUnlocked
 	d.win.SetIgnoreMouseEvents(!free)
 	d.win.SetResizable(free)
 	if free {
 		d.win.SetMinimumSize(360, 40)
+		// Resizing brings the frame DWM draws back: hide it once more.
+		hideWindowBorder(d.win.NativeHandle())
 	}
 }
 
@@ -155,9 +161,10 @@ func (d *desktopLyrics) applyMode() {
 // dragging it.
 func (d *desktopLyrics) movedPlace() {
 	s := &d.a.settings
-	if d.applying || s.DesktopLyricsTaskbar || !s.DesktopLyricsUnlocked {
+	if d.win == nil || d.applying || !s.DesktopLyricsUnlocked {
 		return
 	}
+	d.w, d.h = d.win.Size()
 	if d.saveTimer != nil {
 		d.saveTimer.Stop()
 	}
@@ -288,12 +295,10 @@ func lyricRows(lines []lyrics.Line, cur int) (main, sub string, translated bool)
 // shadowed to read over anything. A new line floats in.
 func (d *desktopLyrics) view(c *ui.Context) {
 	s := &d.a.settings
-	free := s.DesktopLyricsUnlocked && !s.DesktopLyricsTaskbar
+	free := s.DesktopLyricsUnlocked
 	bg := ui.Transparent
 	if s.DesktopLyricsBg {
 		bg = d.bgColor()
-	} else if free {
-		bg = ui.RGBA(0, 0, 0, 0.2) // by hand: show the bar's edges to take
 	}
 	c.Root().Background(bg)
 	if !d.shown {
