@@ -2,6 +2,21 @@
 
 All notable changes to MyGo Music are written down here. Versions follow [Semantic Versioning](https://semver.org).
 
+## [0.1.26] - 2026-11-20
+
+### Added
+
+- Desktop Lyrics: a bar of the song's lyrics stays over the desktop while it plays, following the song. Drag and resize it freely or dock it to the taskbar, and Settings > Desktop Lyrics picks its font and size, sets its background's opacity, and unlocks it for moving.
+
+### Fixed
+
+- GBK-encoded `.lrc` lyrics no longer show as mojibake: a file that is not UTF-8 is read as GBK when it looks it.
+- Fonts are listed by the real names the system displays them under, including fonts installed privately such as WPS's, listed before plain English ones; the saved choice comes back right on the next start.
+- Unlocking the bar's position and size works on the bar docked to the taskbar too: it can be dragged and resized there, and keeps the place it is given across setting changes, within the screen's edges.
+- With its background off the bar shows no faint tint behind the text, and its window draws no hairline border.
+- The bar of desktop lyrics no longer stays hidden under the taskbar after the start menu, a tray panel or the taskbar's own icons are worked over it. It restates its place at the top of the windows on top each time — the move only a new song made before.
+- The Windows executable carries the app's icon even when a plain `go build` makes it.
+
 ## [0.1.25] - 2026-11-14
 
 ### Added
@@ -247,6 +262,7 @@ All notable changes to MyGo Music are written down here. Versions follow [Semant
 
 The first release: a native music player that plays your local files and gets everything else from plugins.
 
+[0.1.26]: https://github.com/egoist/mygo-music/compare/v0.1.25...v0.1.26
 [0.1.25]: https://github.com/egoist/mygo-music/compare/v0.1.24...v0.1.25
 [0.1.24]: https://github.com/egoist/mygo-music/compare/v0.1.23...v0.1.24
 [0.1.23]: https://github.com/egoist/mygo-music/compare/v0.1.22...v0.1.23

@@ -198,8 +198,12 @@ func (d *desktopLyrics) sync() bool {
 			d.win.ShowInactive() // without taking the focus
 			// Again: the taskbar is on top too, and may have come above.
 			d.win.SetAlwaysOnTop(true)
+			// And the shell's windows rise over the bar whenever they are
+			// worked: watch, and keep the bar on top of them all.
+			keepOnTop(d.win.NativeHandle(), true)
 		} else {
 			d.win.Hide()
+			keepOnTop(0, false)
 		}
 	}
 	return want
