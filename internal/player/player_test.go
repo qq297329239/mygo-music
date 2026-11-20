@@ -4,6 +4,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -239,7 +240,11 @@ func (s picky) Stream(id, _ string) (*music.Stream, error) {
 		return nil, music.ErrUnavailable
 	}
 	path, err := filepath.Abs("testdata/seek.mp3")
-	return &music.Stream{URL: "file://" + filepath.ToSlash(path), Type: "mp3"}, err
+	// A file URL has the absolute path after its third slash. Only two left
+	// the drive's letter reading as the host on Windows, so opening the file
+	// went looking for it without its drive.
+	slash := filepath.ToSlash(path)
+	return &music.Stream{URL: "file:///" + strings.TrimPrefix(slash, "/"), Type: "mp3"}, err
 }
 
 // pickyQueue is a, b and c, of which b can't play.

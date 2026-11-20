@@ -4,6 +4,7 @@ import (
 	"os"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,6 +74,10 @@ func (a *app) changed() {
 	if a.notch != nil {
 		a.notch.setEnabled(a.settings.Notch)
 	}
+	if a.dlyr != nil {
+		a.dlyr.applySettings()
+		a.dlyr.sync()
+	}
 	a.redraw()
 }
 
@@ -117,6 +122,18 @@ func choice(c *ui.Context, key, label string, labels []string, at int) (int, boo
 		}
 	}
 	return at, false
+}
+
+// desktopFontName is a font family as the lyrics' font list shows it: as the
+// font names itself in the app's language, where it has one, as Windows'
+// own font folder shows it.
+func desktopFontName(family string) string {
+	if i18n.Language() == i18n.Chinese {
+		if zh, ok := localizedFontNames()[family]; ok {
+			return zh
+		}
+	}
+	return T(family)
 }
 
 // settingsRow is a setting of the settings window: what it is, what it means,
@@ -391,6 +408,164 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 	})
 
 	add("plugins", T("Plugins"), iconPlug, func(row settingsRow, block settingsBlock) { a.sourceSettings(c, row, block, p) })
+
+	add("desktop-lyrics", T("Desktop Lyrics"), iconLyrics, func(row settingsRow, block settingsBlock) {
+		row(T("Show Desktop Lyrics"), T("A bar of lyrics above the taskbar, following the song as it plays"), func() {
+			if ui.Switch(c.Key("desktop-lyrics"), &s.DesktopLyrics).Label(T("Show Desktop Lyrics")).Changed() {
+				a.changed()
+			}
+		})
+		row(T("Attach to the Taskbar"), T("The bar sits on the taskbar itself, one line as tall as it is"), func() {
+			if ui.Switch(c.Key("taskbar"), &s.DesktopLyricsTaskbar).Label(T("Attach to the Taskbar")).
+				Disabled(!s.DesktopLyrics).Changed() {
+				a.changed()
+			}
+		})
+		row(T("Unlock Position and Size"), T("Drag the bar to move it and pull its edges to resize it, until locked again"), func() {
+			if ui.Switch(c.Key("unlocked"), &s.DesktopLyricsUnlocked).Label(T("Unlock Position and Size")).
+				Disabled(!s.DesktopLyrics).Changed() {
+				a.changed()
+			}
+		})
+		row(T("Lines"), T("The line sung alone, or with its translation under it"), func() {
+			sel := 0
+			if s.DesktopLyricsSingle {
+				sel = 1
+			}
+			if segmented(c, &sel, T("Double"), T("Single")) {
+				s.DesktopLyricsSingle = sel == 1
+				a.changed()
+			}
+		})
+		row(T("Font"), T("What the words are drawn in"), func() {
+			families := ui.FontFamilies()
+			// Fonts with a name in the app's language first, keeping their
+			// order, then the rest: Chinese fonts ahead of the Latin ones.
+			slices.SortStableFunc(families, func(a, b ui.FontFamily) int {
+				za, zb := a.Name != desktopFontName(a.Name), b.Name != desktopFontName(b.Name)
+				switch {
+				case za && !zb:
+					return -1
+				case !za && zb:
+					return 1
+				}
+				return 0
+			})
+			// The list shows each family as the font itself names it, but
+			// keeps the name text draws by, which stays English.
+			keys := make([]string, len(families)+1)
+			shown := make([]string, len(keys))
+			shown[0] = T("Default")
+			for i, f := range families {
+				keys[i+1], shown[i+1] = f.Name, desktopFontName(f.Name)
+			}
+			chosen := shown[max(slices.Index(keys, s.DesktopLyricsFont), 0)]
+			if ui.Select(c.Key("font"), &chosen, shown).Label(T("Font")).Width(170).Changed() {
+				if i := slices.Index(shown, chosen); i >= 0 {
+					s.DesktopLyricsFont = keys[i]
+					a.changed()
+				}
+			}
+		})
+		row(T("Font Size"), T("How large the line sung is drawn"), func() {
+			sizes := []string{"12", "14", "16", "18", "20", "22", "24", "28", "32", "36", "42", "48"}
+			cur := s.DesktopLyricsSize
+			if cur == 0 {
+				cur = 22
+			}
+			at, near := 0, 1<<30
+			for i, n := range sizes {
+				v, _ := strconv.Atoi(n)
+				d := v - cur
+				if d < 0 {
+					d = -d
+				}
+				if d < near {
+					at, near = i, d
+				}
+			}
+			if i, ok := choice(c, "size", T("Font Size"), sizes, at); ok {
+				s.DesktopLyricsSize, _ = strconv.Atoi(sizes[i])
+				a.changed()
+			}
+		})
+		row(T("Font Weight"), T("The words bold, or regular"), func() {
+			at := 1
+			if s.DesktopLyricsWeight != 400 {
+				at = 0
+			}
+			if i, ok := choice(c, "weight", T("Font Weight"), []string{T("Bold"), T("Regular")}, at); ok {
+				s.DesktopLyricsWeight = []int{700, 400}[i]
+				a.changed()
+			}
+		})
+		row(T("Alignment"), T("Where the words sit across the bar"), func() {
+			at := 1
+			if s.DesktopLyricsAlign != "left" {
+				at = 0
+			}
+			if i, ok := choice(c, "align", T("Alignment"), []string{T("Center"), T("Left")}, at); ok {
+				s.DesktopLyricsAlign = []string{"", "left"}[i]
+				a.changed()
+			}
+		})
+		row(T("Played Color"), T("What the words already sung draw in"), func() {
+			v := a.pal.accent
+			if got, ok := parseHexColor(s.DesktopLyricsPlayed); ok {
+				v = got
+			}
+			if ui.ColorWell(c.Key("played"), &v).Label(T("Played Color")).Disabled(!s.DesktopLyrics).Changed() {
+				s.DesktopLyricsPlayed = colorHex(v)
+				a.changed()
+			}
+		})
+		row(T("Pending Color"), T("What the words to come draw in"), func() {
+			v := white.Alpha(0.55)
+			if got, ok := parseHexColor(s.DesktopLyricsPending); ok {
+				v = got
+			}
+			if ui.ColorWell(c.Key("pending"), &v).Label(T("Pending Color")).Disabled(!s.DesktopLyrics).Changed() {
+				s.DesktopLyricsPending = colorHex(v)
+				a.changed()
+			}
+		})
+		row(T("Background"), T("A color behind the words, for where they read poorly without one"), func() {
+			if ui.Switch(c.Key("bg"), &s.DesktopLyricsBg).Label(T("Background")).Disabled(!s.DesktopLyrics).Changed() {
+				a.changed()
+			}
+		})
+		row(T("Background Color"), T("The color of that background"), func() {
+			v := ui.RGB(0, 0, 0)
+			if got, ok := parseHexColor(s.DesktopLyricsBgColor); ok {
+				got.A = 255
+				v = got
+			}
+			if ui.ColorWell(c.Key("bg-color"), &v).Label(T("Background Color")).Disabled(!s.DesktopLyricsBg).Changed() {
+				s.DesktopLyricsBgColor = colorHex(v)
+				a.changed()
+			}
+		})
+		row(T("Opacity"), T("How much of what's behind the background shows through"), func() {
+			v := s.DesktopLyricsOpacity
+			if v == 0 {
+				v = 0.6
+			}
+			slider := ui.SliderBase(c.Key("opacity"), &v, 0.15, 1).Width(140).Height(16).Label(T("Opacity")).Disabled(!s.DesktopLyrics)
+			// A SliderBase draws nothing itself; paint its track as the
+			// volume slider does.
+			slider.Draw(func(dr *ui.Painter, r ui.Rect) {
+				const thick = float32(4)
+				y := r.Y + (r.H-thick)/2
+				dr.Fill(ui.Rect{X: r.X, Y: y, W: r.W, H: thick}, p.hairline, thick/2)
+				dr.Fill(ui.Rect{X: r.X, Y: y, W: max(thick, r.W*float32(v)), H: thick}, p.accent, thick/2)
+			})
+			ui.Text(c, strconv.FormatFloat(v*100, 'f', 0, 64)+"%").Width(36).TextColor(p.text).SingleLine()
+			if slider.Changed() {
+				s.DesktopLyricsOpacity = v
+				a.changed()
+			}
+		})
+	})
 
 	// Only on macOS, the one with a notch player.
 	if a.notch != nil {
