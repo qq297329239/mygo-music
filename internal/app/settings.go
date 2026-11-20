@@ -32,6 +32,9 @@ type settings struct {
 	// Notch shows the quick player around the notch: the listener turns
 	// it on.
 	Notch bool `json:"notch"`
+	// DesktopLyrics shows a bar of the song's lyrics over the taskbar: the
+	// listener turns it on.
+	DesktopLyrics bool `json:"desktopLyrics"`
 	// NotchActivity shows the cover and the music's levels beside the
 	// notch while music plays, which hides the menu bar there.
 	NotchActivity bool `json:"notchActivity"`

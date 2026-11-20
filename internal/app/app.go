@@ -55,6 +55,7 @@ type route struct {
 type app struct {
 	win   *mygo.Window
 	notch *notch
+	dlyr  *desktopLyrics // the bar of lyrics over the taskbar
 	tray  *mygo.Tray // the icon in the menu bar or notification area, while it shows
 	art   *artCache
 	pl    *player.Player
@@ -195,6 +196,12 @@ func (a *app) redraw() {
 	}
 	if a.notch != nil && a.notch.win != nil {
 		a.notch.win.Invalidate()
+	}
+	if a.dlyr != nil {
+		a.dlyr.sync() // lyrics coming or gone show and hide the bar
+		if a.dlyr.win != nil {
+			a.dlyr.win.Invalidate()
+		}
 	}
 	if a.settingsWin != nil {
 		a.settingsWin.Invalidate()
@@ -384,6 +391,8 @@ func Run() error {
 		if runtime.GOOS == "darwin" {
 			a.notch = newNotch(a)
 		}
+		// The bar of lyrics over the taskbar, on any display's OS.
+		a.dlyr = newDesktopLyrics(a)
 		// From the menu bar alone, the Dock icon shows while the window
 		// does.
 		a.syncDock()

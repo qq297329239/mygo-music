@@ -73,6 +73,9 @@ func (a *app) changed() {
 	if a.notch != nil {
 		a.notch.setEnabled(a.settings.Notch)
 	}
+	if a.dlyr != nil {
+		a.dlyr.sync()
+	}
 	a.redraw()
 }
 
@@ -391,6 +394,14 @@ func (a *app) settingsSections(c *ui.Context, p palette) []settingsSection {
 	})
 
 	add("plugins", T("Plugins"), iconPlug, func(row settingsRow, block settingsBlock) { a.sourceSettings(c, row, block, p) })
+
+	add("desktop-lyrics", T("Desktop Lyrics"), iconLyrics, func(row settingsRow, block settingsBlock) {
+		row(T("Show Desktop Lyrics"), T("A bar of lyrics above the taskbar, following the song as it plays"), func() {
+			if ui.Switch(c.Key("desktop-lyrics"), &s.DesktopLyrics).Label(T("Show Desktop Lyrics")).Changed() {
+				a.changed()
+			}
+		})
+	})
 
 	// Only on macOS, the one with a notch player.
 	if a.notch != nil {
