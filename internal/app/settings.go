@@ -33,8 +33,26 @@ type settings struct {
 	// it on.
 	Notch bool `json:"notch"`
 	// DesktopLyrics shows a bar of the song's lyrics over the taskbar: the
-	// listener turns it on.
-	DesktopLyrics bool `json:"desktopLyrics"`
+	// listener turns it on. The rest say how that bar looks and where it
+	// sits, their zero values keeping it as it began: floating above the
+	// taskbar, two lines, the theme's accent sung and the rest white.
+	DesktopLyrics          bool `json:"desktopLyrics"`
+	DesktopLyricsTaskbar   bool `json:"desktopLyricsTaskbar,omitempty"`   // over the taskbar itself, one line tall as it is
+	DesktopLyricsSingle    bool `json:"desktopLyricsSingle,omitempty"`    // one line, without the translation under it
+	DesktopLyricsFont      string `json:"desktopLyricsFont,omitempty"`    // a font family, "" for the theme's
+	DesktopLyricsSize      int    `json:"desktopLyricsSize,omitempty"`    // of the sung line, 0 for 22
+	DesktopLyricsWeight    int    `json:"desktopLyricsWeight,omitempty"`  // 0 for bold, 400 for regular
+	DesktopLyricsAlign     string `json:"desktopLyricsAlign,omitempty"`   // "left" to start at the left, "" to center
+	DesktopLyricsPlayed    string `json:"desktopLyricsPlayed,omitempty"`  // hex of what's sung, "" for the accent
+	DesktopLyricsPending   string `json:"desktopLyricsPending,omitempty"` // hex of what's yet to be sung, "" for white 55%
+	DesktopLyricsBg        bool   `json:"desktopLyricsBg,omitempty"`      // a background behind the words
+	DesktopLyricsBgColor   string `json:"desktopLyricsBgColor,omitempty"` // hex of it, "" for black 60%
+	DesktopLyricsOpacity   float64 `json:"desktopLyricsOpacity,omitempty"` // of that background, 0 for 0.6
+	DesktopLyricsUnlocked  bool   `json:"desktopLyricsUnlocked,omitempty"` // the bar takes the pointer, to move and resize it
+	DesktopLyricsX         int    `json:"desktopLyricsX,omitempty"`        // where the listener left the bar, 0 to place it anew
+	DesktopLyricsY         int    `json:"desktopLyricsY,omitempty"`
+	DesktopLyricsW         int    `json:"desktopLyricsW,omitempty"`
+	DesktopLyricsH         int    `json:"desktopLyricsH,omitempty"`
 	// NotchActivity shows the cover and the music's levels beside the
 	// notch while music plays, which hides the menu bar there.
 	NotchActivity bool `json:"notchActivity"`
